@@ -33,6 +33,7 @@ except ImportError:
 from json import loads, dumps
 
 from libs.utils import *
+from libs.xpkj_define import *
 
 # 设置系统为utf-8  勿删除
 reload(sys)
@@ -76,12 +77,13 @@ devices_info_file = "devices.txt"
 
 
 # 新增设备
-def check_device(device_id, device_type, device_addr, device_port):
+def check_device(device_id, device_name, device_type, device_addr, device_port):
     # 如果设备不存在则设备字典新增设备并写文件
     if device_id not in devices_info_dict:
         # 新增设备到字典中
         devices_info_dict[device_id] = {
             "device_id": device_id,
+            "device_name": device_name,
             "device_type": device_type,
             "device_addr": device_addr,
             "device_port": device_port
@@ -91,6 +93,95 @@ def check_device(device_id, device_type, device_addr, device_port):
         devices_file = open(devices_info_file, "w+")
         devices_file.write(dumps(devices_info_dict))
         devices_file.close()
+
+
+# 解析deviceslist消息
+def parse_device_list(msg):
+    lines = msg.split("\n")
+    title_line = lines[0]
+    titles = title_line.split("\t")
+    device_id_index = -1
+    device_type_index = -1
+    device_state_index = -1
+    device_name_index = -1
+    device_addr_index = -1
+
+    cur_devices_dict = dict()
+
+    for key, value in enumerate(titles):
+        if const.msg_devices_info_device_id == value:
+            device_id_index = key
+        elif const.msg_devices_info_device_type == value:
+            device_type_index = key
+        elif const.msg_devices_info_device_stat == value:
+            device_state_index = key
+        elif const.msg_devices_info_device_name == value:
+            device_name_index = key
+        elif const.msg_devices_info_network_id == value:
+            device_addr_index = key
+
+    if device_id_index == -1  \
+            or device_type_index == -1 \
+            or device_state_index == -1\
+            or device_name_index == -1\
+            or device_addr_index == -1:
+        # 如果没有发现相应的字段，则返回空字典
+        return cur_devices_dict
+
+    for index in range(1, len(lines)):
+        cur_line = lines[index]
+        if len(cur_line.strip()) > 0:
+            cur_values = cur_line.split('\t')
+            device_info = {
+                "device_id": cur_values[device_id_index],
+                "device_type": cur_values[device_type_index],
+                "device_state": cur_values[device_state_index],
+                "device_name": cur_values[device_name_index],
+                "device_addr": cur_values[device_addr_index]
+            }
+            cur_devices_dict[device_info["device_id"]] = device_info
+
+    return cur_devices_dict
+
+
+# 处理设备列表消息
+def process_msg_device_list(msg):
+    if len(msg) > 0:
+        cur_devices_dict = parse_device_list(msg)
+        devices_info_dict.clear()
+        for origin_device_id in cur_devices_dict:
+            # 每个ep（功能点）映射平台里的一个设备
+            # 使用device_network/device_name/ep作为device_id
+            # 使用ep作为device_addr
+            cur_device_info = cur_devices_dict[origin_device_id]
+
+            if cur_device_info["device_type"].upper() == const.device_type_8Relays:
+                for index in range(1, 8):
+                    # 8路继电器功能点固定为relay%d
+                    device_addr = "relay%d" % index
+                    device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
+                    check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
+                    publish_device_data(device_id, 0, device_addr, 0, "")
+            elif cur_device_info["device_type"].upper() == const.device_type_UPI:
+                device_addr = "Irep"
+                device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
+                check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
+                publish_device_data(device_id, 0, device_addr, 0, "")
+            elif cur_device_info["device_type"].upper() == const.device_type_8I8O:
+                for index in range(1, 8):
+                    # 8路IO功能点固定为din%d
+                    device_addr = "din%d" % index
+                    device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
+                    check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
+                    publish_device_data(device_id, 0, device_addr, 0, "")
+
+
+def process_msg_device_state(device_id, device_addr, msg):
+    if len(msg) > 0:
+        if "OK" in msg:
+            values = msg.split("'")
+            device_state = values[1]
+            publish_device_data(device_id, 0, device_addr, 0, device_state)
 
 
 def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
@@ -132,29 +223,27 @@ def process_mqtt():
         logger.info("收到数据消息" + msg.topic + " " + str(msg.payload))
         # 消息只包含device_cmd，16进制字符串
         cur_device_info = devices_info_dict[msg.topic]
-        device_cmd = json.loads(msg.payload)["command"]
+        origin_device_cmd = json.loads(msg.payload)
+        device_info = devices_info_dict[msg.topic]
+        device_cmd = "%s\n%s|%s|%s\n" % (origin_device_cmd["command"],
+                                          device_info["device_name"],
+                                          device_info["device_addr"],
+                                          origin_device_cmd["param"])
+        # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Connect to server and send data
             sock.connect((tcp_server_ip, tcp_server_port))
+            received_data = sock.recv(1024)
+            logger.debug("received_data:%r" % received_data)
             sock.sendall(device_cmd)
             received_data = sock.recv(1024)
             if "read_devlist" in device_cmd:
-                global devices_info_dict
-                devices_info_dict = json.loads(received_data)
-                for device_info in devices_info_dict:
-                    publish_device_data(device_info["device_id"],
-                                        device_info["device_type"],
-                                        device_info["device_addr"],
-                                        device_info["device_port"],
-                                        "")
+                # 字典清空
+                process_msg_device_list(received_data)
             elif "run_dev" in device_cmd:
                 # 是否需要再次读取控制状态？
-                publish_device_data(cur_device_info["device_id"],
-                                    cur_device_info["device_type"],
-                                    cur_device_info["device_addr"],
-                                    cur_device_info["device_port"],
-                                    received_data)
+                process_msg_device_state(device_info["device_id"], device_info["device_addr"],received_data)
         finally:
             sock.close()
 
@@ -182,22 +271,23 @@ if __name__ == "__main__":
     try:
         # Connect to server and send data
         sock.connect((tcp_server_ip, tcp_server_port))
-        sock.sendall("read_devlist\n")
-
-        # 读取设备列表
         received_data = sock.recv(1024)
-        global devices_info_dict
-        devices_info_dict = json.loads(received_data)
-        for device_info in devices_info_dict:
-            check_device(device_info["device_id"],
-                                device_info["device_type"],
-                                device_info["device_addr"],
-                                device_info["device_port"])
-            publish_device_data(device_info["device_id"],
-                                device_info["device_type"],
-                                device_info["device_addr"],
-                                device_info["device_port"],
-                                "")
+        logger.debug("received_data：%r" % received_data)
+        sock.sendall("read_devlist\n")
+        received_data = sock.recv(1024)
+        # print received_data
+        process_msg_device_list(received_data)
+
+        # 发送指令
+        # sock.sendall("run_dev\n8relays-266|relay1|close();\n")
+        # received_data = sock.recv(1024)
+        # print received_data
+        #
+        # # 查询状态
+        # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
+        # received_data = sock.recv(1024)
+        # print received_data
+
     finally:
         sock.close()
 
