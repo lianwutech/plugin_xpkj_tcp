@@ -76,14 +76,20 @@ ip_addr = get_ip_addr()
 devices_info_file = "devices.txt"
 
 
-# 新增设备
-def check_device(device_id, device_name, device_type, device_addr, device_port):
+def check_device(device_id, device_type, device_addr, device_port):
+    """
+    check device ,if device is not exist,then add device.
+    :param device_id: network/device_name/eq_name
+    :param device_type: device_type.eq_type
+    :param device_addr: device_name
+    :param device_port: eq_name
+    :return:
+    """
     # 如果设备不存在则设备字典新增设备并写文件
     if device_id not in devices_info_dict:
         # 新增设备到字典中
         devices_info_dict[device_id] = {
             "device_id": device_id,
-            "device_name": device_name,
             "device_type": device_type,
             "device_addr": device_addr,
             "device_port": device_port
@@ -93,6 +99,27 @@ def check_device(device_id, device_name, device_type, device_addr, device_port):
         devices_file = open(devices_info_file, "w+")
         devices_file.write(dumps(devices_info_dict))
         devices_file.close()
+
+
+def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
+    # device_data: 16进制字符串
+    # 组包
+    device_msg = {
+        "device_id": device_id,
+        "device_type": device_type,
+        "device_addr": device_addr,
+        "device_port": device_port,
+        "data_protocol": data_protocol,
+        "data": device_data
+    }
+
+    # MQTT发布
+    publish.single(topic=gateway_topic,
+                   payload=json.dumps(device_msg),
+                   hostname=mqtt_server_ip,
+                   port=mqtt_server_port)
+    logger.info("向Topic(%s)发布消息：%s" % (gateway_topic, device_msg))
+
 
 
 # 解析deviceslist消息
@@ -156,53 +183,38 @@ def process_msg_device_list(msg):
             cur_device_info = cur_devices_dict[origin_device_id]
 
             if cur_device_info["device_type"].upper() == const.device_type_8Relays:
-                for index in range(1, 8):
+                for index in range(0, 8):
                     # 8路继电器功能点固定为relay%d
-                    device_addr = "relay%d" % index
-                    device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
-                    check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
-                    publish_device_data(device_id, 0, device_addr, 0, "")
+                    device_addr = cur_device_info["device_name"]
+                    device_port = "relay%d" % index + 1
+                    device_type = "%s.%s" % (const.device_type_8Relays, "Relay")
+                    device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
+                    check_device(device_id, device_type, device_addr, device_port)
+                    publish_device_data(device_id, device_type, device_addr, device_port, "")
             elif cur_device_info["device_type"].upper() == const.device_type_UPI:
-                device_addr = "Irep"
-                device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
-                check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
-                publish_device_data(device_id, 0, device_addr, 0, "")
+                device_addr = cur_device_info["device_name"]
+                device_port = "Irep"
+                device_type = "%s.%s" % (const.device_type_UPI, "Ired")
+                device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
+                check_device(device_id, device_type, device_addr, device_port)
+                publish_device_data(device_id, device_type, device_addr, device_port, "")
             elif cur_device_info["device_type"].upper() == const.device_type_8I8O:
-                for index in range(1, 8):
+                for index in range(0, 8):
                     # 8路IO功能点固定为din%d
-                    device_addr = "din%d" % index
-                    device_id = "%s/%s/%s" % (device_network, cur_device_info["device_name"], device_addr)
-                    check_device(device_id, cur_device_info["device_name"], 0, device_addr, 0)
-                    publish_device_data(device_id, 0, device_addr, 0, "")
+                    device_addr = cur_device_info["device_name"]
+                    device_port = "din%d" % index + 1
+                    device_type = "%s.%s" % (const.device_type_8I8O, "Din")
+                    device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
+                    check_device(device_id, device_type, device_addr, device_port)
+                    publish_device_data(device_id, device_type, device_addr, device_port, "")
 
 
-def process_msg_device_state(device_id, device_addr, msg):
+def process_msg_device_state(device_id, device_type, device_addr, device_port, msg):
     if len(msg) > 0:
         if "OK" in msg:
             values = msg.split("'")
             device_state = values[1]
-            publish_device_data(device_id, 0, device_addr, 0, device_state)
-
-
-def publish_device_data(device_id, device_type, device_addr, device_port, device_data):
-    # device_data: 16进制字符串
-    # 组包
-    device_msg = {
-        "device_id": device_id,
-        "device_type": device_type,
-        "device_addr": device_addr,
-        "device_port": device_port,
-        "data_protocol": data_protocol,
-        "data": device_data
-    }
-
-    # MQTT发布
-    publish.single(topic=gateway_topic,
-                   payload=json.dumps(device_msg),
-                   hostname=mqtt_server_ip,
-                   port=mqtt_server_port)
-    logger.info("向Topic(%s)发布消息：%s" % (gateway_topic, device_msg))
-
+            publish_device_data(device_id, device_type, device_addr, device_port, device_state)
 
 # 串口数据读取线程
 # 串口数据读取线程
@@ -226,8 +238,8 @@ def process_mqtt():
         origin_device_cmd = json.loads(msg.payload)
         device_info = devices_info_dict[msg.topic]
         device_cmd = "%s\n%s|%s|%s\n" % (origin_device_cmd["command"],
-                                          device_info["device_name"],
                                           device_info["device_addr"],
+                                          device_info["device_port"],
                                           origin_device_cmd["param"])
         # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -243,7 +255,11 @@ def process_mqtt():
                 process_msg_device_list(received_data)
             elif "run_dev" in device_cmd:
                 # 是否需要再次读取控制状态？
-                process_msg_device_state(device_info["device_id"], device_info["device_addr"],received_data)
+                process_msg_device_state(device_info["device_id"],
+                                         device_info["device_type"],
+                                         device_info["device_addr"],
+                                         device_info["device_port"],
+                                         received_data)
         finally:
             sock.close()
 
@@ -264,6 +280,8 @@ if __name__ == "__main__":
 
     addr = (tcp_server_ip, tcp_server_port)
 
+    logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
+
     #Threadingxpkj_tcp从ThreadingMixIn和xpkj_tcp继承
     #class Threadingxpkj_tcp(ThreadingMixIn, xpkj_tcp): pass
     # 获取设备列表
@@ -271,8 +289,8 @@ if __name__ == "__main__":
     try:
         # Connect to server and send data
         sock.connect((tcp_server_ip, tcp_server_port))
-        received_data = sock.recv(1024)
-        logger.debug("received_data：%r" % received_data)
+        # received_data = sock.recv(1024)
+        # logger.debug("received_data：%r" % received_data)
         sock.sendall("read_devlist\n")
         received_data = sock.recv(1024)
         # print received_data
@@ -290,7 +308,7 @@ if __name__ == "__main__":
 
     finally:
         sock.close()
-
+"""
     # 启动线程监控MQTT
     mqtt_thread = threading.Thread(target=process_mqtt)
     mqtt_thread.start()
@@ -306,3 +324,4 @@ if __name__ == "__main__":
 
         logger.debug("处理完成，休眠5秒")
         time.sleep(5)
+"""
