@@ -79,10 +79,10 @@ devices_info_file = "devices.txt"
 def check_device(device_id, device_type, device_addr, device_port):
     """
     check device ,if device is not exist,then add device.
-    :param device_id: network/device_name/eq_name
-    :param device_type: device_type.eq_type
+    :param device_id: network/device_name/ep_name
+    :param device_type: device_type.ep_type
     :param device_addr: device_name
-    :param device_port: eq_name
+    :param device_port: ep_name
     :return:
     """
     # 如果设备不存在则设备字典新增设备并写文件
