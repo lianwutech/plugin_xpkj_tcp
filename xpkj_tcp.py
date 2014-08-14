@@ -192,9 +192,18 @@ def process_msg_device_list(msg):
                     check_device(device_id, device_type, device_addr, device_port)
                     publish_device_data(device_id, device_type, device_addr, device_port, "")
             elif cur_device_info["device_type"].upper() == const.device_type_UPI:
+                # 支持红外
                 device_addr = cur_device_info["device_name"]
                 device_port = "Irep"
-                device_type = "%s.%s" % (const.device_type_UPI, "Ired")
+                device_type = "%s.%s" % (const.device_type_UPI, "Irep")
+                device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
+                check_device(device_id, device_type, device_addr, device_port)
+                publish_device_data(device_id, device_type, device_addr, device_port, "")
+
+                # 支持鼠标
+                device_addr = cur_device_info["device_name"]
+                device_port = "Mouse"
+                device_type = "%s.%s" % (const.device_type_UPI, "Mouse")
                 device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                 check_device(device_id, device_type, device_addr, device_port)
                 publish_device_data(device_id, device_type, device_addr, device_port, "")
@@ -211,7 +220,7 @@ def process_msg_device_list(msg):
 
 def process_msg_device_state(device_id, device_type, device_addr, device_port, msg):
     if len(msg) > 0:
-        if "OK" in msg:
+        if "OK" in msg and device_type == "UPI.Irep":
             values = msg.split("'")
             device_state = values[1]
             publish_device_data(device_id, device_type, device_addr, device_port, device_state)
@@ -234,7 +243,6 @@ def process_mqtt():
     def on_message(client, userdata, msg):
         logger.info("收到数据消息" + msg.topic + " " + str(msg.payload))
         # 消息只包含device_cmd，16进制字符串
-        cur_device_info = devices_info_dict[msg.topic]
         origin_device_cmd = json.loads(msg.payload)
         device_info = devices_info_dict[msg.topic]
         device_cmd = "%s\n%s|%s|%s\n" % (origin_device_cmd["command"],
@@ -289,8 +297,8 @@ if __name__ == "__main__":
     try:
         # Connect to server and send data
         sock.connect((tcp_server_ip, tcp_server_port))
-        # received_data = sock.recv(1024)
-        # logger.debug("received_data：%r" % received_data)
+        received_data = sock.recv(1024)
+        logger.debug("received_data：%r" % received_data)
         sock.sendall("read_devlist\n")
         received_data = sock.recv(1024)
         # print received_data
@@ -308,7 +316,7 @@ if __name__ == "__main__":
 
     finally:
         sock.close()
-"""
+
     # 启动线程监控MQTT
     mqtt_thread = threading.Thread(target=process_mqtt)
     mqtt_thread.start()
@@ -319,9 +327,5 @@ if __name__ == "__main__":
             mqtt_thread = threading.Thread(target=process_mqtt)
             mqtt_thread.start()
 
-        # res_result = modbus_client.read_input_registers(0, 1, unit=1)
-        # print json.dumps(res_result.registers)
-
         logger.debug("处理完成，休眠5秒")
         time.sleep(5)
-"""
