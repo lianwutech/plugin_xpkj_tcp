@@ -109,7 +109,7 @@ def publish_device_data(device_id, device_type, device_addr, device_port, device
         "device_type": device_type,
         "device_addr": device_addr,
         "device_port": device_port,
-        "data_protocol": data_protocol,
+        "protocol": data_protocol,
         "data": device_data
     }
 
