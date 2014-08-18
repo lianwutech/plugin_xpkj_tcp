@@ -56,7 +56,7 @@ hdlr = logging.FileHandler('./xpkj_tcp.log')
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 hdlr.setFormatter(formatter)
 logger.addHandler(hdlr)
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 
 # 加载配置项
 config = ConfigParser.ConfigParser()
@@ -218,12 +218,37 @@ def process_msg_device_list(msg):
                     publish_device_data(device_id, device_type, device_addr, device_port, "")
 
 
-def process_msg_device_state(device_id, device_type, device_addr, device_port, msg):
-    if len(msg) > 0:
-        if "OK" in msg and device_type == "UPI.Irep":
-            values = msg.split("'")
-            device_state = values[1]
-            publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+def process_msg_upi_irep_run_state(device_id, device_type, device_addr, device_port, msg):
+    """
+    处理运行结果消息
+    :param device_id:
+    :param device_type:
+    :param device_addr:
+    :param device_port:
+    :param msg:
+    :return:
+    """
+    if "OK" in msg and device_type == "UPI.Irep":
+        values = msg.split("'")
+        device_state = values[1]
+        logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
+        publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+
+
+def process_msg_read_state(device_id, device_type, device_addr, device_port, msg):
+    """
+    处理读取数据消息
+    :param device_id:
+    :param device_type:
+    :param device_addr:
+    :param device_port:
+    :param msg:
+    :return:
+    """
+    if "state=" in msg:
+        device_state = msg.split("'")[1]
+        logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
+        publish_device_data(device_id, device_type, device_addr, device_port, device_state)
 
 # 串口数据读取线程
 # 串口数据读取线程
@@ -242,32 +267,47 @@ def process_mqtt():
     # The callback for when a PUBLISH message is received from the server.
     def on_message(client, userdata, msg):
         logger.info("收到数据消息" + msg.topic + " " + str(msg.payload))
-        # 消息只包含device_cmd，16进制字符串
-        origin_device_cmd = json.loads(msg.payload)
+        gateway_device_cmd = json.loads(msg.payload)["command"]
         device_info = devices_info_dict[msg.topic]
-        device_cmd = "%s\n%s|%s|%s\n" % (origin_device_cmd["command"],
+        device_cmd = "%s\n%s|%s|%s;\n" % (gateway_device_cmd["command"],
                                           device_info["device_addr"],
                                           device_info["device_port"],
-                                          origin_device_cmd["param"])
+                                          gateway_device_cmd["param"])
         # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Connect to server and send data
             sock.connect((tcp_server_ip, tcp_server_port))
             received_data = sock.recv(1024)
-            logger.debug("received_data:%r" % received_data)
+            logger.debug("received_data1:%r" % received_data)
             sock.sendall(device_cmd)
             received_data = sock.recv(1024)
+            logger.debug("received_data2:%r" % received_data)
             if "read_devlist" in device_cmd:
                 # 字典清空
                 process_msg_device_list(received_data)
             elif "run_dev" in device_cmd:
                 # 是否需要再次读取控制状态？
-                process_msg_device_state(device_info["device_id"],
-                                         device_info["device_type"],
-                                         device_info["device_addr"],
-                                         device_info["device_port"],
-                                         received_data)
+                if device_info["device_type"] == "UPI.Irep":
+                    process_msg_upi_irep_run_state(device_info["device_id"],
+                                                   device_info["device_type"],
+                                                   device_info["device_addr"],
+                                                   device_info["device_port"],
+                                                   received_data)
+                elif device_info["device_type"] == "8RELAYS.Relay":
+                    process_msg_read_state(device_info["device_id"],
+                                           device_info["device_type"],
+                                           device_info["device_addr"],
+                                           device_info["device_port"],
+                                           received_data)
+                else:
+                    pass
+            elif "read_dev" in device_cmd:
+                process_msg_read_state(device_info["device_id"],
+                                       device_info["device_type"],
+                                       device_info["device_addr"],
+                                       device_info["device_port"],
+                                       received_data)
         finally:
             sock.close()
 
@@ -305,13 +345,15 @@ if __name__ == "__main__":
         process_msg_device_list(received_data)
 
         # 发送指令
-        # sock.sendall("run_dev\n8relays-266|relay1|close();\n")
+        # sock.sendall("run_dev\n8relays|relay3|open();\n")
         # received_data = sock.recv(1024)
         # print received_data
         #
         # # 查询状态
-        # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
+        # sock.sendall("read_dev\n8relays|relay1|state;\n")
         # received_data = sock.recv(1024)
+        # x = received_data.split("'")
+        # y = x[1]
         # print received_data
 
     finally:
