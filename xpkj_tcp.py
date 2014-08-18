@@ -186,7 +186,7 @@ def process_msg_device_list(msg):
                 for index in range(0, 8):
                     # 8路继电器功能点固定为relay%d
                     device_addr = cur_device_info["device_name"]
-                    device_port = "relay%d" % index + 1
+                    device_port = "relay%d" % (index + 1)
                     device_type = "%s.%s" % (const.device_type_8Relays, "Relay")
                     device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                     check_device(device_id, device_type, device_addr, device_port)
@@ -211,7 +211,7 @@ def process_msg_device_list(msg):
                 for index in range(0, 8):
                     # 8路IO功能点固定为din%d
                     device_addr = cur_device_info["device_name"]
-                    device_port = "din%d" % index + 1
+                    device_port = "din%d" % (index + 1)
                     device_type = "%s.%s" % (const.device_type_8I8O, "Din")
                     device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                     check_device(device_id, device_type, device_addr, device_port)
