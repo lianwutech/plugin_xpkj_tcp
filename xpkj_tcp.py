@@ -365,15 +365,19 @@ if __name__ == "__main__":
     finally:
         sock.close()
 
-    # 启动线程监控MQTT
-    mqtt_thread = threading.Thread(target=process_mqtt)
-    mqtt_thread.start()
-
     while True:
-        # 如果线程停止则创建
-        if not mqtt_thread.isAlive():
-            mqtt_thread = threading.Thread(target=process_mqtt)
-            mqtt_thread.start()
+        process_mqtt()
+        logger.info("process_mqtt运行结束，再次运行。")
 
-        logger.debug("处理完成，休眠5秒")
-        time.sleep(5)
+    # # 启动线程监控MQTT
+    # mqtt_thread = threading.Thread(target=process_mqtt)
+    # mqtt_thread.start()
+    #
+    # while True:
+    #     # 如果线程停止则创建
+    #     if not mqtt_thread.isAlive():
+    #         mqtt_thread = threading.Thread(target=process_mqtt)
+    #         mqtt_thread.start()
+    #
+    #     logger.debug("处理完成，休眠5秒")
+    #     time.sleep(5)
