@@ -268,50 +268,53 @@ def process_mqtt():
     def on_message(client, userdata, msg):
         logger.info("收到数据消息" + msg.topic + " " + str(msg.payload))
         gateway_device_cmd = json.loads(msg.payload)["command"]
-        device_info = devices_info_dict[msg.topic]
-        device_cmd = "%s\n%s|%s|%s;\n" % (gateway_device_cmd["command"],
-                                          device_info["device_addr"],
-                                          device_info["device_port"],
-                                          gateway_device_cmd["param"])
-        # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            # Connect to server and send data
-            sock.connect((tcp_server_ip, tcp_server_port))
-            received_data = sock.recv(1024)
-            logger.debug("received_data1:%r" % received_data)
-            sock.sendall(device_cmd)
-            received_data = sock.recv(1024)
-            logger.debug("received_data2:%r" % received_data)
-            if "read_devlist" in device_cmd:
-                # 字典清空
-                process_msg_device_list(received_data)
-            elif "run_dev" in device_cmd:
-                # 是否需要再次读取控制状态？
-                if device_info["device_type"] == "UPI.Irep":
-                    process_msg_upi_irep_run_state(device_info["device_id"],
-                                                   device_info["device_type"],
-                                                   device_info["device_addr"],
-                                                   device_info["device_port"],
-                                                   received_data)
-                elif device_info["device_type"] == "8RELAYS.Relay":
+        device_info = devices_info_dict.get(msg.topic, None)
+        if device_info is not None:
+            device_cmd = "%s\n%s|%s|%s;\n" % (gateway_device_cmd["command"],
+                                              device_info["device_addr"],
+                                              device_info["device_port"],
+                                              gateway_device_cmd["param"])
+            # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                # Connect to server and send data
+                sock.connect((tcp_server_ip, tcp_server_port))
+                received_data = sock.recv(1024)
+                logger.debug("received_data1:%r" % received_data)
+                sock.sendall(device_cmd)
+                received_data = sock.recv(1024)
+                logger.debug("received_data2:%r" % received_data)
+                if "read_devlist" in device_cmd:
+                    # 字典清空
+                    process_msg_device_list(received_data)
+                elif "run_dev" in device_cmd:
+                    # 是否需要再次读取控制状态？
+                    if device_info["device_type"] == "UPI.Irep":
+                        process_msg_upi_irep_run_state(device_info["device_id"],
+                                                       device_info["device_type"],
+                                                       device_info["device_addr"],
+                                                       device_info["device_port"],
+                                                       received_data)
+                    elif device_info["device_type"] == "8RELAYS.Relay":
+                        process_msg_read_state(device_info["device_id"],
+                                               device_info["device_type"],
+                                               device_info["device_addr"],
+                                               device_info["device_port"],
+                                               received_data)
+                    else:
+                        pass
+                elif "read_dev" in device_cmd:
                     process_msg_read_state(device_info["device_id"],
                                            device_info["device_type"],
                                            device_info["device_addr"],
                                            device_info["device_port"],
                                            received_data)
-                else:
-                    pass
-            elif "read_dev" in device_cmd:
-                process_msg_read_state(device_info["device_id"],
-                                       device_info["device_type"],
-                                       device_info["device_addr"],
-                                       device_info["device_port"],
-                                       received_data)
-        except Exception, e:
-            logger.error("异常，错误内容：%r" % e)
-        finally:
-            sock.close()
+            except Exception, e:
+                logger.error("异常，错误内容：%r" % e)
+            finally:
+                sock.close()
+        else:
+            logger.error("未发现设备：%s" % msg.topic)
 
     mqtt_client = mqtt.Client(client_id=device_network)
     mqtt_client.on_connect = on_connect
