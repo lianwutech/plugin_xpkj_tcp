@@ -308,6 +308,8 @@ def process_mqtt():
                                        device_info["device_addr"],
                                        device_info["device_port"],
                                        received_data)
+        except Exception, e:
+            logger.error("异常，错误内容：%r" % e)
         finally:
             sock.close()
 
@@ -315,13 +317,16 @@ def process_mqtt():
     mqtt_client.on_connect = on_connect
     mqtt_client.on_message = on_message
 
-    mqtt_client.connect(mqtt_server_ip, mqtt_server_port, 60)
+    try:
+        mqtt_client.connect(mqtt_server_ip, mqtt_server_port, 60)
 
-    # Blocking call that processes network traffic, dispatches callbacks and
-    # handles reconnecting.
-    # Other loop*() functions are available that give a threaded interface and a
-    # manual interface.
-    mqtt_client.loop_forever()
+        # Blocking call that processes network traffic, dispatches callbacks and
+        # handles reconnecting.
+        # Other loop*() functions are available that give a threaded interface and a
+        # manual interface.
+        mqtt_client.loop_forever()
+    except Exception, e:
+        logger.error("MQTT链接失败，错误内容:%r" % e)
 
 
 if __name__ == "__main__":
@@ -330,8 +335,6 @@ if __name__ == "__main__":
 
     logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
 
-    #Threadingxpkj_tcp从ThreadingMixIn和xpkj_tcp继承
-    #class Threadingxpkj_tcp(ThreadingMixIn, xpkj_tcp): pass
     # 获取设备列表
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
