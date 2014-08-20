@@ -1,10 +1,18 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 """
-    modbus网络的tcp数据采集插件
-    1、device_id的组成方式为addr_slaveid
-    2、设备类型为0，协议类型为modbus
-    3、devices_info_dict需要持久化设备信息，启动时加载，变化时写入
+    携普科技产品支持
+    8Relay的开关功能：
+        state:
+        cmd:
+    UPI的红外功能：
+        cmd:run_dev\nUPI|Irep|wcode("fdsfdf");\n
+        ret:OK(#0#UPI|Mouse|NULL);
+    8I8O的输入功能：
+        data: read_dev\n8I8O|din1|state;\n
+        cmd:run_dev\n8I8O|din1|wcode("fdsfdf");\n
+        ret:
+
 """
 import sys
 import json
@@ -185,9 +193,10 @@ def read_dev_list():
         # Connect to server and send data
         sock.connect((tcp_server_ip, tcp_server_port))
         received_data = sock.recv(1024)
-        logger.debug("received_data：%r" % received_data)
+        logger.debug("received_data1：%r" % received_data)
         sock.sendall("read_devlist\n")
         received_data = sock.recv(1024)
+        logger.debug("received_data2：%r" % received_data)
         # print received_data
         process_msg_device_list(received_data)
 
@@ -202,7 +211,8 @@ def read_dev_list():
         # x = received_data.split("'")
         # y = x[1]
         # print received_data
-
+    except Exception, e:
+        logger.error("处理读取设备列表失败，错误内容：%r" % e)
     finally:
         sock.close()
 
@@ -310,6 +320,7 @@ def process_mqtt():
                                               device_info["device_port"],
                                               gateway_device_cmd["param"])
             # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 # Connect to server and send data
@@ -345,7 +356,7 @@ def process_mqtt():
                                            device_info["device_port"],
                                            received_data)
             except Exception, e:
-                logger.error("异常，错误内容：%r" % e)
+                logger.error("处理异常，错误内容：%r" % e)
             finally:
                 sock.close()
         else:
@@ -358,11 +369,6 @@ def process_mqtt():
 
     try:
         mqtt_client.connect(mqtt_server_ip, mqtt_server_port, 60)
-
-        # Blocking call that processes network traffic, dispatches callbacks and
-        # handles reconnecting.
-        # Other loop*() functions are available that give a threaded interface and a
-        # manual interface.
         mqtt_client.loop_forever()
     except Exception, e:
         logger.error("MQTT链接失败，错误内容:%r" % e)
@@ -376,15 +382,3 @@ if __name__ == "__main__":
         process_mqtt()
         logger.info("process_mqtt运行结束，再次运行。")
 
-    # # 启动线程监控MQTT
-    # mqtt_thread = threading.Thread(target=process_mqtt)
-    # mqtt_thread.start()
-    #
-    # while True:
-    #     # 如果线程停止则创建
-    #     if not mqtt_thread.isAlive():
-    #         mqtt_thread = threading.Thread(target=process_mqtt)
-    #         mqtt_thread.start()
-    #
-    #     logger.debug("处理完成，休眠5秒")
-    #     time.sleep(5)
