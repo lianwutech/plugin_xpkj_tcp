@@ -171,6 +171,41 @@ def parse_device_list(msg):
     return cur_devices_dict
 
 
+def read_dev_list():
+    """
+    读取设备列表
+    :return:
+    """
+
+    logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
+
+    # 获取设备列表
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        # Connect to server and send data
+        sock.connect((tcp_server_ip, tcp_server_port))
+        received_data = sock.recv(1024)
+        logger.debug("received_data：%r" % received_data)
+        sock.sendall("read_devlist\n")
+        received_data = sock.recv(1024)
+        # print received_data
+        process_msg_device_list(received_data)
+
+        # 发送指令
+        # sock.sendall("run_dev\n8relays|relay3|open();\n")
+        # received_data = sock.recv(1024)
+        # print received_data
+        #
+        # # 查询状态
+        # sock.sendall("read_dev\n8relays|relay1|state;\n")
+        # received_data = sock.recv(1024)
+        # x = received_data.split("'")
+        # y = x[1]
+        # print received_data
+
+    finally:
+        sock.close()
+
 # 处理设备列表消息
 def process_msg_device_list(msg):
     if len(msg) > 0:
@@ -315,6 +350,7 @@ def process_mqtt():
                 sock.close()
         else:
             logger.error("未发现设备：%s" % msg.topic)
+            read_dev_list()
 
     mqtt_client = mqtt.Client(client_id=device_network)
     mqtt_client.on_connect = on_connect
@@ -334,36 +370,7 @@ def process_mqtt():
 
 if __name__ == "__main__":
 
-    addr = (tcp_server_ip, tcp_server_port)
-
-    logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
-
-    # 获取设备列表
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        # Connect to server and send data
-        sock.connect((tcp_server_ip, tcp_server_port))
-        received_data = sock.recv(1024)
-        logger.debug("received_data：%r" % received_data)
-        sock.sendall("read_devlist\n")
-        received_data = sock.recv(1024)
-        # print received_data
-        process_msg_device_list(received_data)
-
-        # 发送指令
-        # sock.sendall("run_dev\n8relays|relay3|open();\n")
-        # received_data = sock.recv(1024)
-        # print received_data
-        #
-        # # 查询状态
-        # sock.sendall("read_dev\n8relays|relay1|state;\n")
-        # received_data = sock.recv(1024)
-        # x = received_data.split("'")
-        # y = x[1]
-        # print received_data
-
-    finally:
-        sock.close()
+    read_dev_list()
 
     while True:
         process_mqtt()
