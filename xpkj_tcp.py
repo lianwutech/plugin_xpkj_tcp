@@ -275,7 +275,7 @@ def process_msg_irep_rcode(device_id, device_type, device_addr, device_port, msg
     :return:
     """
     if "OK" in msg and device_type == "UPI.Irep":
-        values = msg.split("'")
+        values = msg.split("\"")
         device_state = values[1]
         logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
         publish_device_data(device_id, device_type, device_addr, device_port, device_state)
@@ -292,10 +292,11 @@ def process_msg_irep_wcode(device_id, device_type, device_addr, device_port, msg
     :return:
     """
     if "OK" in msg and device_type == "UPI.Irep":
-        values = msg.split("'")
-        device_state = values[1]
-        logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
-        publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+        return
+        # values = msg.split("'")
+        # device_state = values[1]
+        # logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
+        # publish_device_data(device_id, device_type, device_addr, device_port, device_state)
 
 
 def process_relay_state(device_id, device_type, device_addr, device_port, msg):
