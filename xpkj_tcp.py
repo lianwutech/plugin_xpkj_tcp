@@ -264,7 +264,7 @@ def read_dev_list():
     finally:
         sock.close()
 
-def process_msg_irep_rcode(device_id, device_type, device_addr, device_port, msg):
+def process_msg_irep_rcode(device_id, device_type, device_addr, device_port, msg, tag):
     """
     处理运行结果消息
     :param device_id:
@@ -276,7 +276,7 @@ def process_msg_irep_rcode(device_id, device_type, device_addr, device_port, msg
     """
     if "OK" in msg and device_type == "UPI.Irep":
         values = msg.split("\"")
-        device_state = values[1]
+        device_state = json.dumps({"tag": tag, "code": values[1]})
         logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
         publish_device_data(device_id, device_type, device_addr, device_port, device_state)
 
@@ -381,11 +381,14 @@ def process_mqtt():
                     elif device_info["device_type"] == const.eq_type_irep:
                         # 红外设备，支持方法rcode(),wcode()
                         if "rcode" in gateway_device_cmd["param"]:
+                            # 学习编码时提供tag
+                            tag = gateway_device_cmd.get("tag", "")
                             process_msg_irep_rcode(device_info["device_id"],
                                                            device_info["device_type"],
                                                            device_info["device_addr"],
                                                            device_info["device_port"],
-                                                           received_data)
+                                                           received_data,
+                                                           tag)
                         elif "wcode" in gateway_device_cmd["param"]:
                             process_msg_irep_wcode(device_info["device_id"],
                                                            device_info["device_type"],

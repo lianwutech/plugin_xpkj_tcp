@@ -1,4 +1,16 @@
 协议名称：xpkj
 
-上行数据格式为整形
-下行命令格式为协议中定义的字符串
+下行格式封装在json中，格式为：{"command": 下行指令}
+
+Relay设备：
+上行数据：{"device_id":"", "device_type":"", "device_addr":"", "device_port":"","protocol":"","data":"c/o"}
+下行指令：{"command":"", "param":""}
+
+Irep设备：
+上行数据：{"device_id":"", "device_type":"", "device_addr":"", "device_port":"","protocol":"","data": {"tag":"", "code":""}}
+下行指令：{"command":"", "param":"", "tag":""}
+
+Din设备:
+上行数据：{"device_id":"", "device_type":"", "device_addr":"", "device_port":"","protocol":"","data":"h/l"}
+下行指令：{"command":"", "param":""}
+
