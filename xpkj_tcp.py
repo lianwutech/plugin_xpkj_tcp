@@ -2,16 +2,32 @@
 # -*- coding:utf-8 -*-
 """
     携普科技产品支持
-    8Relay的开关功能：
-        state:
-        cmd:
-    UPI的红外功能：
-        cmd:run_dev\nUPI|Irep|wcode("fdsfdf");\n
-        ret:OK(#0#UPI|Mouse|NULL);
-    8I8O的输入功能：
-        data: read_dev\n8I8O|din1|state;\n
-        cmd:run_dev\n8I8O|din1|wcode("fdsfdf");\n
-        ret:
+
+    一、8Relays.relay1
+        1、状态查询
+        read_dev\n8Relays|relay1|state;\n
+
+        2、打开
+        run_dev\n8relays|dout1|open();\n
+
+        3、关闭
+        run_dev\n8relays|dout1|close();\n
+
+    二、UPI.Irep
+        1、学习
+        run_dev\nUPI|Irep|rcode();\n
+        OK(#0#||code="0,10,a,0,0,0,0,ab,ab,15,16,15,40,15,40,15,40,15,16,15,16,15,16,15,16,15,16,15,40,15,40,15,40,15,
+        16,15,16,15,16,15,16,15,16,15,16,15,40,15,40,15,16,15,16,15,16,15,16,15,40,15,40,15,16,15,16,15,40,15,40,15,40,
+        15,40,15,6e1,aa,ac,15,40,15”)
+
+        2、操作
+        run_dev\nUPI|Irep|wcode("0,b,f,0,0,0,0,156,ac,15,41,15,16,15,41,15,16,15,16,15,41,15,16,15,41,15,16,15,16,15,
+        41,15,41,15,41,15,41,15,16,15,16,15,16,15,41,15,16,15,16,15,41,15,41,15,41,15,16,15,41,15,16,15,41,15,41,15,16,
+        15,16,15,16,15,41,15");\n
+
+    三、8I8O.din1
+        1、查询状态(2秒/次)
+        read_dev\n8I8O|din1|state;\n
 
 """
 import sys
@@ -129,7 +145,6 @@ def publish_device_data(device_id, device_type, device_addr, device_port, device
     logger.info("向Topic(%s)发布消息：%s" % (gateway_topic, device_msg))
 
 
-
 # 解析deviceslist消息
 def parse_device_list(msg):
     lines = msg.split("\n")
@@ -179,45 +194,8 @@ def parse_device_list(msg):
     return cur_devices_dict
 
 
-def read_dev_list():
-    """
-    读取设备列表
-    :return:
-    """
-
-    logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
-
-    # 获取设备列表
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        # Connect to server and send data
-        sock.connect((tcp_server_ip, tcp_server_port))
-        received_data = sock.recv(1024)
-        logger.debug("received_data1：%r" % received_data)
-        sock.sendall("read_devlist\n")
-        received_data = sock.recv(1024)
-        logger.debug("received_data2：%r" % received_data)
-        # print received_data
-        process_msg_device_list(received_data)
-
-        # 发送指令
-        # sock.sendall("run_dev\n8relays|relay3|open();\n")
-        # received_data = sock.recv(1024)
-        # print received_data
-        #
-        # # 查询状态
-        # sock.sendall("read_dev\n8relays|relay1|state;\n")
-        # received_data = sock.recv(1024)
-        # x = received_data.split("'")
-        # y = x[1]
-        # print received_data
-    except Exception, e:
-        logger.error("处理读取设备列表失败，错误内容：%r" % e)
-    finally:
-        sock.close()
-
 # 处理设备列表消息
-def process_msg_device_list(msg):
+def process_read_device_list(msg):
     if len(msg) > 0:
         cur_devices_dict = parse_device_list(msg)
         devices_info_dict.clear()
@@ -232,7 +210,7 @@ def process_msg_device_list(msg):
                     # 8路继电器功能点固定为relay%d
                     device_addr = cur_device_info["device_name"]
                     device_port = "relay%d" % (index + 1)
-                    device_type = "%s.%s" % (const.device_type_8Relays, "Relay")
+                    device_type = const.eq_type_relay
                     device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                     check_device(device_id, device_type, device_addr, device_port)
                     publish_device_data(device_id, device_type, device_addr, device_port, "")
@@ -240,7 +218,7 @@ def process_msg_device_list(msg):
                 # 支持红外
                 device_addr = cur_device_info["device_name"]
                 device_port = "Irep"
-                device_type = "%s.%s" % (const.device_type_UPI, "Irep")
+                device_type = const.eq_type_irep
                 device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                 check_device(device_id, device_type, device_addr, device_port)
                 publish_device_data(device_id, device_type, device_addr, device_port, "")
@@ -248,7 +226,7 @@ def process_msg_device_list(msg):
                 # 支持鼠标
                 device_addr = cur_device_info["device_name"]
                 device_port = "Mouse"
-                device_type = "%s.%s" % (const.device_type_UPI, "Mouse")
+                device_type = const.eq_type_mouse
                 device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                 check_device(device_id, device_type, device_addr, device_port)
                 publish_device_data(device_id, device_type, device_addr, device_port, "")
@@ -257,13 +235,36 @@ def process_msg_device_list(msg):
                     # 8路IO功能点固定为din%d
                     device_addr = cur_device_info["device_name"]
                     device_port = "din%d" % (index + 1)
-                    device_type = "%s.%s" % (const.device_type_8I8O, "Din")
+                    device_type = const.eq_type_din
                     device_id = "%s/%s/%s" % (device_network, device_addr, device_port)
                     check_device(device_id, device_type, device_addr, device_port)
                     publish_device_data(device_id, device_type, device_addr, device_port, "")
 
 
-def process_msg_upi_irep_run_state(device_id, device_type, device_addr, device_port, msg):
+def read_dev_list():
+    """
+    读取设备列表
+    :return:
+    """
+    logger.debug("链接服务器%s:%d" % (tcp_server_ip, tcp_server_port))
+
+    # 获取设备列表
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        # Connect to server and send data
+        sock.connect((tcp_server_ip, tcp_server_port))
+        received_data = sock.recv(1024)
+        logger.debug("received_data1：%r" % received_data)
+        sock.sendall("read_devlist\n")
+        received_data = sock.recv(1024)
+        logger.debug("received_data2：%r" % received_data)
+        process_read_device_list(received_data)
+    except Exception, e:
+        logger.error("处理读取设备列表失败，错误内容：%r" % e)
+    finally:
+        sock.close()
+
+def process_msg_irep_rcode(device_id, device_type, device_addr, device_port, msg):
     """
     处理运行结果消息
     :param device_id:
@@ -280,7 +281,24 @@ def process_msg_upi_irep_run_state(device_id, device_type, device_addr, device_p
         publish_device_data(device_id, device_type, device_addr, device_port, device_state)
 
 
-def process_msg_read_state(device_id, device_type, device_addr, device_port, msg):
+def process_msg_irep_wcode(device_id, device_type, device_addr, device_port, msg):
+    """
+    处理运行结果消息
+    :param device_id:
+    :param device_type:
+    :param device_addr:
+    :param device_port:
+    :param msg:
+    :return:
+    """
+    if "OK" in msg and device_type == "UPI.Irep":
+        values = msg.split("'")
+        device_state = values[1]
+        logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
+        publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+
+
+def process_relay_state(device_id, device_type, device_addr, device_port, msg):
     """
     处理读取数据消息
     :param device_id:
@@ -294,6 +312,23 @@ def process_msg_read_state(device_id, device_type, device_addr, device_port, msg
         device_state = msg.split("'")[1]
         logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
         publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+
+
+def process_din_state(device_id, device_type, device_addr, device_port, msg):
+    """
+    处理读取数据消息
+    :param device_id:
+    :param device_type:
+    :param device_addr:
+    :param device_port:
+    :param msg:
+    :return:
+    """
+    if "state=" in msg:
+        device_state = msg.split("'")[1]
+        logger.debug("device_id: %s, device_state:%s" % (device_id, device_state))
+        publish_device_data(device_id, device_type, device_addr, device_port, device_state)
+
 
 # 串口数据读取线程
 # 串口数据读取线程
@@ -319,7 +354,6 @@ def process_mqtt():
                                               device_info["device_addr"],
                                               device_info["device_port"],
                                               gateway_device_cmd["param"])
-            # sock.sendall("read_dev\n8relays-266|relay1|state;\n")
 
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
@@ -331,30 +365,49 @@ def process_mqtt():
                 received_data = sock.recv(1024)
                 logger.debug("received_data2:%r" % received_data)
                 if "read_devlist" in device_cmd:
-                    # 字典清空
-                    process_msg_device_list(received_data)
+                    # 处理设备列表消息
+                    process_read_device_list(received_data)
                 elif "run_dev" in device_cmd:
                     # 是否需要再次读取控制状态？
-                    if device_info["device_type"] == "UPI.Irep":
-                        process_msg_upi_irep_run_state(device_info["device_id"],
-                                                       device_info["device_type"],
-                                                       device_info["device_addr"],
-                                                       device_info["device_port"],
-                                                       received_data)
-                    elif device_info["device_type"] == "8RELAYS.Relay":
-                        process_msg_read_state(device_info["device_id"],
+                    if device_info["device_type"] == const.eq_type_relay:
+                        # 继电器设备，支持方法open(),close()
+                        if "open" in gateway_device_cmd["param"] or "close" in gateway_device_cmd["param"]:
+                            process_relay_state(device_info["device_id"],
+                                                   device_info["device_type"],
+                                                   device_info["device_addr"],
+                                                   device_info["device_port"],
+                                                   received_data)
+                    elif device_info["device_type"] == const.eq_type_irep:
+                        # 红外设备，支持方法rcode(),wcode()
+                        if "rcode" in gateway_device_cmd["param"]:
+                            process_msg_irep_rcode(device_info["device_id"],
+                                                           device_info["device_type"],
+                                                           device_info["device_addr"],
+                                                           device_info["device_port"],
+                                                           received_data)
+                        elif "wcode" in gateway_device_cmd["param"]:
+                            process_msg_irep_wcode(device_info["device_id"],
+                                                           device_info["device_type"],
+                                                           device_info["device_addr"],
+                                                           device_info["device_port"],
+                                                           received_data)
+                    else:
+                        logger.error("设备%s不支持指令%s" % (device_info["device_type"], device_cmd))
+                elif "read_dev" in device_cmd:
+                    if device_info["device_type"] == const.eq_type_relay:
+                        # 继电器设备，支持state
+                        process_relay_state(device_info["device_id"],
                                                device_info["device_type"],
                                                device_info["device_addr"],
                                                device_info["device_port"],
                                                received_data)
-                    else:
-                        pass
-                elif "read_dev" in device_cmd:
-                    process_msg_read_state(device_info["device_id"],
-                                           device_info["device_type"],
-                                           device_info["device_addr"],
-                                           device_info["device_port"],
-                                           received_data)
+                    elif device_info["device_type"] == const.eq_type_din:
+                        # din设备，支持state
+                        process_din_state(device_info["device_id"],
+                                               device_info["device_type"],
+                                               device_info["device_addr"],
+                                               device_info["device_port"],
+                                               received_data)
             except Exception, e:
                 logger.error("处理异常，错误内容：%r" % e)
             finally:

@@ -14,7 +14,13 @@ const.msg_devices_info_device_stat      = 'stat'
 # 设备类型
 const.device_type_UPI                   = "UPI"
 const.device_type_8I8O                  = "8I8O"
-const.device_type_8Relays               = "8Relays".upper()
+const.device_type_8Relays               = "8RELAYS"
+
+const.eq_type_relay                     = "8RELAYS.Relay"
+const.eq_type_irep                      = "UPI.Irep"
+const.eq_type_mouse                     = "UPI.Mouse"
+const.eq_type_din                       = "8I8O.Din"
+
 
 # 设备状态
 const.device_state_offline              = 0
